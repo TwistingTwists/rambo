@@ -2,7 +2,7 @@ defmodule Rambo.MixProject do
   use Mix.Project
 
   @version "0.3.4"
-  @repo_url "https://github.com/jayjun/rambo"
+  @repo_url "https://github.com/TwistingTwists/rambo"
 
   def project do
     [
@@ -24,19 +24,24 @@ defmodule Rambo.MixProject do
         main: "Rambo",
         api_reference: false,
         extra_section: []
-      ]
+      ],
+      aliases: [test: ["rambo.install --if-missing", "test"]]
     ]
   end
 
   def application do
     [
-      extra_applications: []
+      extra_applications: [:logger, inets: :optional, ssl: :optional],
+      mod: {Rambo, []},
+      env: [default: []]
     ]
   end
 
   defp deps do
     [
-      {:ex_doc, "~> 0.24", only: [:docs], runtime: false}
+      {:ex_doc, "~> 0.24", only: [:docs], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
+      {:jason, "~> 1.0"}
     ]
   end
 end

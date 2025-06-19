@@ -4,6 +4,8 @@ defmodule Rambo do
              |> Enum.drop(2)
              |> Enum.join("\n")
 
+  @latest_version "0.3.4"
+
   defstruct status: nil, out: "", err: ""
 
   @type t :: %__MODULE__{
@@ -14,7 +16,40 @@ defmodule Rambo do
   @type args :: String.t() | [iodata()] | nil
   @type result :: {:ok, t()} | {:error, t() | String.t()} | {:killed, t()}
 
+  use Application
   alias __MODULE__
+  require Logger
+
+  @doc false
+  def start(_, _) do
+    if Application.get_env(:rambo, :version_check, true) do
+      unless Application.get_env(:rambo, :version) do
+        Logger.warning("""
+        rambo version is not configured. Please set it in your config files:
+
+            config :rambo, :version, "#{latest_version()}"
+        """)
+      end
+
+      configured_version = configured_version()
+
+      case bin_version() do
+        {:ok, ^configured_version} ->
+          :ok
+
+        {:ok, version} ->
+          Logger.warning("""
+          Outdated rambo version. Expected #{configured_version}, got #{version}. \
+          Please run `mix rambo.install` or update the version in your config files.\
+          """)
+
+        :error ->
+          :ok
+      end
+    end
+
+    Supervisor.start_link([], strategy: :one_for_one)
+  end
 
   @doc """
   Stop by killing your command.
@@ -157,7 +192,7 @@ defmodule Rambo do
             log -> [log]
           end
 
-        rambo = Mix.Tasks.Compile.Rambo.find_rambo()
+        rambo = find_rambo_executable()
         port = Port.open({:spawn, rambo}, [:binary, :exit_status, {:packet, 4}])
         send_command(port, command)
 
@@ -317,5 +352,272 @@ defmodule Rambo do
   defp cancel_timer(result, timer_ref) do
     Process.cancel_timer(timer_ref)
     result
+  end
+
+  @doc """
+  Returns the latest known rambo version.
+  """
+  def latest_version, do: @latest_version
+
+  @doc """
+  Returns the configured rambo version.
+  """
+  def configured_version do
+    Application.get_env(:rambo, :version, latest_version())
+  end
+
+  @doc """
+  Returns the configured rambo target. By default, it is automatically detected.
+  """
+  def configured_target do
+    Application.get_env(:rambo, :target, target())
+  end
+
+  @doc """
+  Returns the path to the rambo executable.
+  """
+  def bin_path do
+    filename = case configured_target() do
+      "windows" -> "rambo.exe"
+      target -> "rambo-#{target}"
+    end
+
+    Application.get_env(:rambo, :path) ||
+      if Code.ensure_loaded?(Mix.Project) do
+        Path.join(Path.dirname(Mix.Project.build_path()), filename)
+      else
+        Path.expand("_build/#{filename}")
+      end
+  end
+
+  @doc false
+  def find_rambo_executable do
+    # Try new binary download approach first
+    new_path = bin_path()
+    if File.exists?(new_path) do
+      new_path
+    else
+      # Fall back to old compile approach
+      Mix.Tasks.Compile.Rambo.find_rambo()
+    end
+  end
+
+  @doc """
+  Returns the version of the rambo executable.
+  """
+  def bin_version do
+    path = bin_path()
+
+    with true <- File.exists?(path),
+         {out, 0} <- System.cmd(path, ["--version"]),
+         [vsn] <- Regex.run(~r/rambo v?([^\s]+)/, out, capture: :all_but_first) do
+      {:ok, vsn}
+    else
+      _ -> :error
+    end
+  end
+
+  @doc """
+  The default URL to install Rambo from.
+  """
+  def default_base_url do
+    # Use the repo URL directly from the module attribute pattern like Tailwind
+    "https://github.com/TwistingTwists/rambo/releases/download/v$version/rambo-$target"
+  end
+
+  @doc """
+  Installs rambo with `configured_version/0`.
+  """
+  def install(base_url \\ default_base_url()) do
+    url = get_url(base_url)
+    bin_path = bin_path()
+    binary = fetch_body!(url)
+    File.mkdir_p!(Path.dirname(bin_path))
+
+    if File.exists?(bin_path) do
+      File.rm!(bin_path)
+    end
+
+    File.write!(bin_path, binary, [:binary])
+    File.chmod(bin_path, 0o755)
+  end
+
+  @doc """
+  Returns the configuration for the given profile.
+
+  Returns nil if the profile does not exist.
+  """
+  def config_for!(profile) when is_atom(profile) do
+    Application.get_env(:rambo, profile) ||
+      raise ArgumentError, """
+      unknown rambo profile. Make sure the profile is defined in your config/config.exs file, such as:
+
+          config :rambo,
+            version: "#{@latest_version}",
+            #{profile}: [
+              args: ["echo", "hello"],
+              cd: Path.expand("..", __DIR__)
+            ]
+      """
+  end
+
+
+
+  @doc """
+  Installs, if not available, and then runs `rambo`.
+
+  Returns the same as `run/2`.
+  """
+  def install_and_run(profile, args) do
+    unless File.exists?(bin_path()) do
+      install()
+    end
+
+    run(profile, args)
+  end
+
+  defp target do
+    arch_str = :erlang.system_info(:system_architecture)
+    target_triple = arch_str |> List.to_string() |> String.split("-")
+
+    {arch, abi} =
+      case target_triple do
+        [arch, _vendor, _system, abi] -> {arch, abi}
+        [arch, _vendor, abi] -> {arch, abi}
+        [arch | _] -> {arch, nil}
+      end
+
+    case {:os.type(), arch, abi, :erlang.system_info(:wordsize) * 8} do
+      {{:win32, _}, _arch, _abi, 64} ->
+        "windows"
+
+      {{:unix, :darwin}, arch, _abi, 64} when arch in ~w(arm aarch64) ->
+        "macarm"
+
+      {{:unix, :darwin}, "x86_64", _abi, 64} ->
+        "mac"
+
+      {{:unix, :linux}, "aarch64", _abi, 64} ->
+        "linuxarm"
+
+      {{:unix, _osname}, arch, _abi, 64} when arch in ~w(x86_64 amd64) ->
+        "linux"
+
+      {_os, _arch, _abi, _wordsize} ->
+        raise "rambo is not available for architecture: #{arch_str}"
+    end
+  end
+
+  defp fetch_body!(url, retry \\ true) when is_binary(url) do
+    scheme = URI.parse(url).scheme
+    url = String.to_charlist(url)
+    Logger.debug("Downloading rambo from #{url}")
+
+    {:ok, _} = Application.ensure_all_started(:inets)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+
+    if proxy = proxy_for_scheme(scheme) do
+      %{host: host, port: port} = URI.parse(proxy)
+      Logger.debug("Using #{String.upcase(scheme)}_PROXY: #{proxy}")
+      set_option = if "https" == scheme, do: :https_proxy, else: :proxy
+      :httpc.set_options([{set_option, {{String.to_charlist(host), port}, []}}])
+    end
+
+    http_options =
+      [
+        ssl: [
+          verify: :verify_peer,
+          cacerts: :public_key.cacerts_get(),
+          depth: 2,
+          customize_hostname_check: [
+            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+          ],
+          versions: protocol_versions()
+        ]
+      ]
+      |> maybe_add_proxy_auth(scheme)
+
+    options = [body_format: :binary]
+
+    case {retry, :httpc.request(:get, {url, []}, http_options, options)} do
+      {_, {:ok, {{_, 200, _}, _headers, body}}} ->
+        body
+
+      {_, {:ok, {{_, 404, _}, _headers, _body}}} ->
+        raise """
+        The rambo binary couldn't be found at: #{url}
+
+        This could mean that you're trying to install a version that does not support the detected
+        target architecture.
+
+        You can see the available files for the configured version at:
+
+        https://github.com/jayjun/rambo/releases/tag/v#{configured_version()}
+        """
+
+      {true, {:error, {:failed_connect, [{:to_address, _}, {inet, _, reason}]}}}
+      when inet in [:inet, :inet6] and
+             reason in [:ehostunreach, :enetunreach, :eprotonosupport, :nxdomain] ->
+        :httpc.set_options(ipfamily: fallback(inet))
+        fetch_body!(to_string(url), false)
+
+      other ->
+        raise """
+        Couldn't fetch #{url}: #{inspect(other)}
+
+        This typically means we cannot reach the source or you are behind a proxy.
+        You can try again later and, if that does not work, you might:
+
+          1. If behind a proxy, ensure your proxy is configured and that
+             your certificates are set via OTP ca certfile overide via SSL configuration.
+
+          2. Manually download the executable from the URL above and
+             place it inside "_build/rambo-#{configured_target()}"
+
+          3. Compile rambo from source using the existing compilation process.
+        """
+    end
+  end
+
+  defp fallback(:inet), do: :inet6
+  defp fallback(:inet6), do: :inet
+
+  defp proxy_for_scheme("http") do
+    System.get_env("HTTP_PROXY") || System.get_env("http_proxy")
+  end
+
+  defp proxy_for_scheme("https") do
+    System.get_env("HTTPS_PROXY") || System.get_env("https_proxy")
+  end
+
+  defp maybe_add_proxy_auth(http_options, scheme) do
+    case proxy_auth(scheme) do
+      nil -> http_options
+      auth -> [{:proxy_auth, auth} | http_options]
+    end
+  end
+
+  defp proxy_auth(scheme) do
+    with proxy when is_binary(proxy) <- proxy_for_scheme(scheme),
+         %{userinfo: userinfo} when is_binary(userinfo) <- URI.parse(proxy),
+         [username, password] <- String.split(userinfo, ":") do
+      {String.to_charlist(username), String.to_charlist(password)}
+    else
+      _ -> nil
+    end
+  end
+
+  defp protocol_versions do
+    if otp_version() < 25, do: [:"tlsv1.2"], else: [:"tlsv1.2", :"tlsv1.3"]
+  end
+
+  defp otp_version do
+    :erlang.system_info(:otp_release) |> List.to_integer()
+  end
+
+  defp get_url(base_url) do
+    base_url
+    |> String.replace("$version", configured_version())
+    |> String.replace("$target", configured_target())
   end
 end
