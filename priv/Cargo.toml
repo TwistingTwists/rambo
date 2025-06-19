@@ -1,6 +1,6 @@
 [package]
 name = "rambo"
-version = "0.3.5"
+version = "0.3.12"
 authors = ["Tan Jay Jun", "Abhishek Tripathi"]
 edition = "2018"
 repository = "https://github.com/TwistingTwists/rambo"
