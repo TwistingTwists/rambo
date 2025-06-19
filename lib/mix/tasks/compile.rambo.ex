@@ -6,12 +6,14 @@ defmodule Mix.Tasks.Compile.Rambo do
   @mac "x86_64-apple-darwin"
   @macarm "aarch64-apple-darwin"
   @linux "x86_64-unknown-linux-musl"
+  @linuxarm "aarch64-unknown-linux-musl"
   @windows "x86_64-pc-windows-gnu"
 
   @filenames %{
     @mac => "rambo-mac",
     @macarm => "rambo-macarm",
     @linux => "rambo-linux",
+    @linuxarm => "rambo-linuxarm",
     @windows => "rambo.exe",
     :custom => "rambo"
   }
@@ -28,6 +30,9 @@ defmodule Mix.Tasks.Compile.Rambo do
 
       String.starts_with?(@environment, "x86_64") and String.contains?(@environment, "linux") ->
         @linux
+
+      String.starts_with?(@environment, "aarch64") and String.contains?(@environment, "linux") ->
+        @linuxarm
 
       @environment == "win32" ->
         @windows
@@ -47,6 +52,7 @@ defmodule Mix.Tasks.Compile.Rambo do
     with :ok <- compile(@mac),
          :ok <- compile(@macarm),
          :ok <- compile_in_docker(@linux),
+         :ok <- compile_in_docker(@linuxarm),
          :ok <- compile_in_docker(@windows) do
       :ok
     else
@@ -70,8 +76,9 @@ defmodule Mix.Tasks.Compile.Rambo do
       case platform do
         "mac" -> compile(@mac)
         "macarm" -> compile(@macarm)
-        "linux" -> compile(@linux)
-        "windows" -> compile(@windows)
+        "linux" -> compile_in_docker(@linux)
+        "linuxarm" -> compile_in_docker(@linuxarm)
+        "windows" -> compile_in_docker(@windows)
         _ -> :ok
       end
     end
