@@ -20,6 +20,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: rambo
             asset_name: rambo-linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: rambo
+            asset_name: rambo-linux-arm64
           # - os: windows-latest
           #   target: x86_64-pc-windows-msvc
           #   artifact_name: rambo.exe
