@@ -1,9 +1,20 @@
 [package]
 name = "rambo"
-version = "0.3.4"
-authors = ["Tan Jay Jun"]
+version = "0.3.5"
+authors = ["Tan Jay Jun", "Abhishek Tripathi"]
 edition = "2018"
+repository = "https://github.com/TwistingTwists/rambo"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 tokio = { version = "0.2", features = ["io-std", "io-util", "macros", "process", "rt-core"] }
 futures = "0.3.5"
+
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+
+ 
