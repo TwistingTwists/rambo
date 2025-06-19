@@ -14,7 +14,7 @@ defmodule Mix.Tasks.Rambo.Install do
   third party path to the binary:
 
   ```bash
-  $ mix rambo.install https://github.com/jayjun/rambo/releases/download/v0.3.4/rambo-linux
+  $ mix rambo.install https://github.com/TwistingTwists/rambo/releases/download/v0.3.16/rambo-linux
   ```
 
   ## Options
@@ -49,7 +49,7 @@ defmodule Mix.Tasks.Rambo.Install do
           Invalid arguments to rambo.install, expected one of:
 
               mix rambo.install
-              mix rambo.install 'https://github.com/jayjun/rambo/releases/download/v$version/rambo-$target'
+              mix rambo.install 'https://github.com/TwistingTwists/rambo/releases/download/v$version/rambo-$target'
               mix rambo.install --runtime-config
               mix rambo.install --if-missing
           """)

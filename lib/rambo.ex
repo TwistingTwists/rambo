@@ -4,7 +4,15 @@ defmodule Rambo do
              |> Enum.drop(2)
              |> Enum.join("\n")
 
-  @latest_version "0.3.4"
+  defp read_version_from_mix do
+    mix_file = File.read!("#{__DIR__}/../mix.exs")
+    case Regex.run(~r/@version\s+"([^"]+)"/, mix_file) do
+      [_, version] -> version
+      _ -> "0.3.15"  # fallback version
+    end
+  end
+
+  @latest_version read_version_from_mix()
 
   defstruct status: nil, out: "", err: ""
 
@@ -552,7 +560,7 @@ defmodule Rambo do
 
         You can see the available files for the configured version at:
 
-        https://github.com/jayjun/rambo/releases/tag/v#{configured_version()}
+        https://github.com/TwistingTwists/rambo/releases/tag/v#{configured_version()}
         """
 
       {true, {:error, {:failed_connect, [{:to_address, _}, {inet, _, reason}]}}}
