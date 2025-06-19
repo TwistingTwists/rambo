@@ -41,7 +41,7 @@ command finishes. Change this with the `:log` option.
 Rambo.run("ls", log: :stderr) # default
 Rambo.run("ls", log: :stdout) # log stdout only
 Rambo.run("ls", log: true)    # log both stdout and stderr
-Rambo.run("ls", log: false)   # don’t log output
+Rambo.run("ls", log: false)   # don't log output
 
 # or to any function
 Rambo.run("echo", log: &IO.inspect/1)
@@ -68,7 +68,7 @@ Task.await(task)
 Erlang ports do not work with programs that expect EOF to produce output. The
 only way to close standard input is to close the port, which also closes
 standard output, preventing results from coming back to your app. This gotcha
-is marked [Won’t Fix](https://bugs.erlang.org/browse/ERL-128).
+is marked [Won't Fix](https://bugs.erlang.org/browse/ERL-128).
 
 ### Design
 
@@ -90,7 +90,7 @@ orphans.
 ## Caveats
 
 You cannot call `Rambo.run` from a GenServer because Rambo uses `receive`, which
-interferes with GenServer’s `receive` loop. However, you can wrap the call in a
+interferes with GenServer's `receive` loop. However, you can wrap the call in a
 Task.
 
 ```elixir
@@ -110,7 +110,7 @@ data. For more complicated use cases, see below.
 
 ### System.cmd
 
-If you don’t need to pipe standard input or capture standard error, just use
+If you don't need to pipe standard input or capture standard error, just use
 [`System.cmd`](https://hexdocs.pm/elixir/System.html#cmd/3).
 
 ### Porcelain
@@ -121,7 +121,7 @@ separately to add this capability. Rambo ships with the required native
 binaries.
 
 Goon is written in Go, a multithreaded runtime with a garbage collector. To be
-as lightweight as possible, Rambo’s shim is written in Rust using non-blocking,
+as lightweight as possible, Rambo's shim is written in Rust using non-blocking,
 asynchronous I/O only. No garbage collection runtime, no latency spikes.
 
 Most importantly, Porcelain currently [leaks](https://github.com/alco/porcelain/issues/13)
@@ -174,14 +174,78 @@ def deps do
 end
 ```
 
-Linux, macOS and Windows binaries are bundled (x86-64 architecture only). For
-other environments, install the Rust compiler or Rambo won’t compile.
+### Binary Installation (Recommended)
 
-To remove unused binaries, set `:purge` to `true` in your configuration.
+Rambo now supports downloading prebuilt binaries from GitHub releases, similar to how Phoenix Tailwind works. This eliminates the need to install Rust for most users.
+
+After adding the dependency, configure the version in your `config/config.exs`:
+
+```elixir
+config :rambo, version: "0.3.5"
+```
+
+Then install the binary:
+
+```bash
+$ mix rambo.install
+```
+
+The binary will be automatically downloaded and installed to `_build/rambo-{target}` where `{target}` is your platform (e.g., `linux`, `mac`, `macarm`, `windows`).
+
+#### Available Platforms
+
+- **Linux**: `x86_64` and `aarch64` (ARM64)
+- **macOS**: Intel (`x86_64`) and Apple Silicon (`aarch64`) 
+- **Windows**: `x86_64`
+
+#### Installation Options
+
+```bash
+# Install only if binary doesn't exist
+$ mix rambo.install --if-missing
+
+# Install from custom URL
+$ mix rambo.install https://github.com/TwistingTwists/rambo/releases/download/v0.3.4/rambo-linux
+
+# Load runtime configuration before installing
+$ mix rambo.install --runtime-config
+```
+
+#### Automatic Installation
+
+Rambo will automatically download the binary when needed. You can also add it to your deps.get alias in `mix.exs` to ensure the binary is installed immediately after dependencies:
+
+```elixir
+defp aliases do
+  [
+    "deps.get": ["deps.get", "rambo.install --if-missing"]
+  ]
+end
+```
+
+This ensures that whenever someone runs `mix deps.get`, the rambo binary will be automatically installed if it's missing.
+
+### Compilation from Source (Fallback)
+
+If prebuilt binaries are not available for your platform, Rambo will automatically fall back to compiling from source using Rust. Install the Rust compiler for this to work.
+
+To remove unused binaries after compilation, set `:purge` to `true` in your configuration:
 
 ```elixir
 config :rambo,
   purge: true
+```
+
+### Configuration
+
+You can configure Rambo with various options:
+
+```elixir
+config :rambo,
+  version: "0.3.4",           # Specific version to download
+  path: "/custom/path/rambo", # Custom binary path (not recommended)
+  target: "linux-x64",       # Override target detection
+  version_check: false       # Disable version checking on startup
 ```
 
 ## Links
