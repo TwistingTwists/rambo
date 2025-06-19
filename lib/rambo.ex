@@ -8,11 +8,9 @@ defmodule Rambo do
     mix_file = File.read!("#{__DIR__}/../mix.exs")
     case Regex.run(~r/@version\s+"([^"]+)"/, mix_file) do
       [_, version] -> version
-      _ -> "0.3.15"  # fallback version
+      _ -> "0.3.16"  # fallback version
     end
   end
-
-  @latest_version read_version_from_mix()
 
   defstruct status: nil, out: "", err: ""
 
@@ -365,7 +363,7 @@ defmodule Rambo do
   @doc """
   Returns the latest known rambo version.
   """
-  def latest_version, do: @latest_version
+  def latest_version, do: read_version_from_mix()
 
   @doc """
   Returns the configured rambo version.
@@ -461,7 +459,7 @@ defmodule Rambo do
       unknown rambo profile. Make sure the profile is defined in your config/config.exs file, such as:
 
           config :rambo,
-            version: "#{@latest_version}",
+            version: "#{read_version_from_mix()}",
             #{profile}: [
               args: ["echo", "hello"],
               cd: Path.expand("..", __DIR__)
@@ -482,6 +480,17 @@ defmodule Rambo do
     end
 
     run(profile, args)
+  end
+
+  defp target_to_binary_name(target) do
+    case target do
+      "linux" -> "linux-x86_64"
+      "linuxarm" -> "linux-arm64"
+      "mac" -> "macos-x86_64"
+      "macarm" -> "macos-arm64"
+      "windows" -> "windows-x86_64"
+      target -> target
+    end
   end
 
   defp target do
@@ -626,6 +635,6 @@ defmodule Rambo do
   defp get_url(base_url) do
     base_url
     |> String.replace("$version", configured_version())
-    |> String.replace("$target", configured_target())
+    |> String.replace("$target", target_to_binary_name(configured_target()))
   end
 end
