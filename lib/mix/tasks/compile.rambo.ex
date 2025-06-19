@@ -77,7 +77,8 @@ defmodule Mix.Tasks.Compile.Rambo do
         "mac" -> compile(@mac)
         "macarm" -> compile(@macarm)
         "linux" -> compile_in_docker(@linux)
-        "linuxarm" -> compile_in_docker(@linuxarm)
+        "linuxarm" -> compile_linuxarm()
+        "linuxarm-docker" -> compile_in_docker(@linuxarm)
         "windows" -> compile_in_docker(@windows)
         _ -> :ok
       end
@@ -140,6 +141,16 @@ defmodule Mix.Tasks.Compile.Rambo do
       :ok
     else
       {output, _exit_status} -> {:error, [output]}
+    end
+  end
+
+  defp compile_linuxarm do
+    use_docker = System.get_env("RAMBO_LINUXARM_DOCKER", "false") == "true"
+    
+    if use_docker do
+      compile_in_docker(@linuxarm)
+    else
+      compile(@linuxarm)
     end
   end
 
