@@ -1,7 +1,7 @@
 defmodule Rambo.MixProject do
   use Mix.Project
 
-  @version "0.3.8"
+  @version "0.3.9"
   @repo_url "https://github.com/TwistingTwists/rambo"
 
   def project do
